@@ -1,0 +1,72 @@
+﻿# Prototype Development Roadmap
+
+Source: *Multi-Agent Food Redistribution System – Project modules and workflow specification* (13 modules).
+Each phase must be reviewed and explicitly approved before the next one starts.
+
+> **Note on scope.** The specification describes the trust/negotiation agent, the logistics agent and the
+> backup/storage agent, but it does **not** define a scoring formula, a negotiation protocol, a reinforcement
+> learning component or evaluation methods (it lists them as open decisions). Phases 7–9 therefore contain
+> *proposed* designs, marked as such, for you to approve or change.
+
+| Phase | Name | Spec modules | Key deliverables |
+|---|---|---|---|
+| 1 ✅ | Foundation: portals, core data service, role selection & authentication | M1, M4, M13 | Core data service (authoritative records), 3 separate portal apps (Admin/Host, Restaurant, NGO) with own frontend + backend, role-selection landing page, per-portal login, service-to-service keys, host accounts created by the team, audit event log |
+| 2 ✅ | Onboarding, verification & availability | M2, M3, M5 | Restaurant onboarding (lat/long, photos, licence/evidence), NGO + representative onboarding with photo verification, host review queue (approve / hold / decline / request info), badges (restaurant blue/orange, NGO green, agent green/red), agent directory |
+| 3 ✅ | Food listings & nearby-NGO notification | M6, M7 (basic) | Listing with quantity, condition, prep/expiry time, photo; expiry enforcement; only verified restaurants; distance-based nearby-agent alerts; first-accept claim with no double assignment |
+| 4 ✅ | Pickup, inspection, delivery & storage | M8, M9 | Assignment state machine, inspection record (actual qty, condition, discrepancy), delivery confirmation to recipient, NGO storage inventory with expiry tracking |
+| 5 ✅ | Host dashboard & live map | M10 | Map of restaurants, agents, open tickets and movement; agent detail panel; last-known vs live location; operational overview |
+| 6 ✅ | Multi-agent layer: logistics & backup collection | M11 | Agent runtime + message bus, route-optimisation agent (nearest-collector + route heuristics), backup/storage agent with trigger rules (no acceptance / all agents busy) |
+| 7 ✅ | Trust assessment & negotiation protocol *(proposed design)* | M12, M7 (advanced) | Explainable trust/reputation scores with confidence and reasons (decision support only), Contract-Net-style negotiation between listing and NGO agents, host review flags |
+| 8 ✅ | Simulation & evaluation harness *(proposed design)* | cross-cutting | Synthetic city/scenario generator, metrics (food rescued %, waste, pickup latency, distance, fairness, trust calibration), baseline comparisons, reports |
+| 9 ✅ | Reinforcement-learning dispatch policy *(proposed design)* | M7, M11 | RL / bandit policy trained in the simulator, compared against heuristic baselines, deployed behind a host-controlled switch |
+| 10 ✅ | Hardening & integration | all | Notifications, privacy/retention rules, security review, deployment scripts, end-to-end demo |
+
+Phases can be re-ordered, split or extended as requirements change.
+
+## Decisions recorded
+
+| Phase | Decision |
+|---|---|
+| 2 | NGO representative photo is captured at first registration only (not every login). |
+| 2 | Restaurant evidence: ≥1 restaurant photo, food licence, identity/business proof. NGO evidence: representative photo, NGO registration certificate, representative ID. |
+| 2 | Photo verification is a manual host comparison; no automated face matching. |
+| 2 | One representative (collecting agent) per NGO account for now; multiple agents per NGO can be added later. |
+| 2 | "Request more information" is the *On hold* state with a mandatory note; the applicant edits and resubmits. Declining also needs a note. The host can change any decision later. |
+| 2 | Availability is stored and shown separately from verification and can be toggled once the NGO profile exists. |
+| 3 | Nearby radius is 5 km (straight-line distance) from the restaurant's verified location. |
+| 3 | Quantity units: portions or kg. Types: veg / non-veg / mixed. Condition: fresh / good / fair. A food photo is required. |
+| 3 | Expiry must be after preparation, at least 15 minutes from now, and at most 72 hours ahead. Listings expire automatically. |
+| 3 | Only verified + available NGO agents within the radius are alerted. Agents who become available later are alerted about food already waiting. |
+| 3 | First agent to accept gets the pickup (no double assignment, enforced in the database). One active pickup per agent. If nobody accepts, the listing stays open until it expires. |
+| 3 | Restaurant phone and contact name are shared with the NGO only after it accepts; restaurant badges are never shown to NGOs. |
+| 4 | Pickup steps: accepted → on the way → food check → collected or rejected; then delivered, stored or disposed. Food counts as collected only after the food check is recorded. |
+| 4 | Food check: collected quantity cannot exceed the listed quantity; a smaller quantity needs a note; spoiled food must be rejected with a reason. Expired food cannot be collected, delivered, stored or given out; it must be recorded as disposed with a reason. |
+| 4 | The agent can give a pickup back before collecting it; the food is offered to nearby agents again. |
+| 4 | Each NGO keeps its own recipient list (orphanage, shelter, old-age home, community kitchen, slum community, other). Proof of delivery is the name of the person who received the food. |
+| 4 | Collected food is handed over in full (delivered to one recipient or stored). Stored food can be given out in parts; stock is tracked against its best-before time. |
+| 5 | Map provider: OpenStreetMap via Leaflet (free, no API key). Can be switched to Google Maps once an API key is available. |
+| 5 | NGO agents share live location from their portal with Start/Stop buttons; it is accepted only while they are Available or on a pickup, and deleted when they stop or go Unavailable with no pickup. |
+| 5 | A position is "live" for 2 minutes, then shown as "last known"; agents not sharing are shown at their NGO base. Movement trails are kept only for pickups in progress. The host map refreshes every 10 seconds. |
+| 6 | Backend agents (logistics, backup) run inside the core service every 30 seconds and talk over a message bus; every message is logged for the host. They suggest and escalate; people still accept the food. |
+| 6 | "Logistics agent" = route-optimisation backend. It ranks verified, available collectors by estimated travel time (road = straight line × 1.35, 18 km/h, 5 min per stop) with a fairness penalty of 2 min per pickup done in the last 24 h, and marks the top 3 as Recommended. Routes go to the nearest recipient with a map position, otherwise to the NGO's storage. |
+| 6 | "Backup collector" = an NGO that opts in; it can take backup requests even when not Available, within its chosen distance, and stores the food at its NGO. |
+| 6 | Food is at risk when not accepted within 20 min, when no agent could be alerted within 5 min, or when 60 min or less remain. Escalation: alert agents within 10 km → after 10 min (or 45 min left) offer to the nearest backup collector → 10 min to answer, then the next one → "needs host attention". The host can escalate at once. |
+| 7 | Trust score = (successes + 1) / (total + 2) × 100 (Beta reputation); new accounts start at 50. Confidence: low < 5 events, medium 5–19, high 20+. Host only; decision support, never an automatic block. |
+| 7 | NGO: success = pickup delivered or stored; failure = given back, accepted but expired before collection, or collected then disposed. Restaurant: success = food check matched; rejected = failure; short quantity = half a failure; cancellations shown but not scored. |
+| 7 | Review flags: 2+ pickups given back in 7 days; 3+ rejections or 2+ short quantities in 7 days; score below 40 with at least medium confidence. Hosts can add notes. |
+| 7 | Contract-Net negotiation on every new listing: restaurant agent announces → logistics sends call for proposals to nearby NGO agents → each proposes (travel time, trust) or refuses (unavailable, busy, too far) → bid total = travel + (100 − trust)/10 (max 10) + 2 min per pickup in 24 h → top 3 awarded "Recommended". People still accept; first accept wins. |
+| 7 | Fix: a pickup accepted but not collected before its best-before time now expires automatically and frees the agent (previously it stayed "busy"). |
+| 8 | Simulator = fast discrete-event model (not the real database). It imports the app's own rules and numbers: 5 km radius, one pickup per agent, travel estimates, backup thresholds, trust and bid formulas. |
+| 8 | People model: an offered agent answers in 1–6 min, says yes with a set chance, and may give the pickup back (unreliable NGOs more often). Draws depend only on (seed, post, agent, attempt), so every strategy faces identical behaviour. |
+| 8 | Default "busy city": 40 restaurants, 15 NGOs, 80 posts/day, 45% on duty, 25% unreliable NGOs, 20% backup collectors; 3 cities × 5 days. Each run is capped at 6,000 posts. |
+| 8 | Strategies compared: Random, Nearest agent, Our agents, Our agents without trust (to show what trust adds). Metrics: food saved %, portions saved/wasted, time to accept/pickup, km per 100 portions, Gini of work spread, give-backs and rate, rescued by escalation. |
+| 8 | First finding (default city): our agents save ~94% of food vs ~76% for random/nearest, mainly thanks to escalation (wider alerts + backup), at the cost of more travel. The trust penalty makes no measurable difference here, a target for Phase 9. |
+| 9 | Learned dispatch = linear policy cost = weights · features, trained by REINFORCE (policy gradient) in the simulator, starting from the hand-set Phase 7 weights. Features are shared by the app and the simulator: travel, trust gap, low confidence, pickups today, travel-when-urgent, trust-gap × food size, off-duty backup. |
+| 9 | Reward per offer: saved = portions/10 − 0.2 × km; given back = −3; arrived too late = −portions/10; declined = no signal. 300 practice cities (seeds from 10,000), tested on unseen cities (seeds 1–3) with the Phase 8 report. |
+| 9 | Recommended only if, on unseen cities, food saved is within 0.2 points (or better) and the give-back rate is not worse. First result: same food saved (94.3%), give-back rate 15.2% → 14.2%, ~1% more travel; it learned to weigh trust about 2× more, especially for large food posts, and fairness less. |
+| 9 | Off by default; the host switches it on/off in the Agents tab. If the policy file is missing or invalid, ranking falls back to the hand-set rule. People still accept; the backup agent still applies. |
+| 10 | Notifications are in-app (bell + inbox in each portal, refreshed every 30 s), created from the event log, so every part of the system can notify without extra wiring. No email or SMS yet (that needs a provider account). |
+| 10 | Privacy: restaurant and NGO see each other's phone only while the pickup is in progress; the host always does. Retention: movement trails 7 days, stale positions 1 day, notifications 30 days (read) or 90 (unread), agent messages and sign-in records 90 days; food records and the audit log are kept. The housekeeping agent applies the rules hourly. |
+| 10 | Data requests: the host can export an account (JSON) or erase it. Erasure removes personal details, documents, locations and notifications, keeps food records anonymised, signs the account out, and is refused while it has open food, pickups or stock. Host accounts cannot be erased this way. |
+| 10 | Security limits: 5 failed sign-ins per email + network in 15 min (30 per network), 10 registrations per network per hour; security headers; cross-site POST/PUT/DELETE refused; `no-store` on all API answers. Full review in SECURITY.md. |
+| 10 | Deployment stays simple: one `scripts/setup.py`, `.env` support, `scripts/health.py`, and `scripts/demo.py` (the end-to-end story, also an automated test). |

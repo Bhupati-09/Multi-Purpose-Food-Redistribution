@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Host Admin Portal</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Open+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="/static/common/portal.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>:root{--accent:#1d5f96;--btn:#1d5f96;--btn-ink:#fff;--auth-img:url("https://images.unsplash.com/photo-1593113646773-028c64a8f1b8?w=1100&q=70&auto=format&fit=crop");--auth-quote:"Every pickup, every agent, every meal - in one place.";--auth-title:"Host sign-in"}</style>
+</head><body data-portal="admin">
+<header><h1><span class="brand-text"><b>Food Redistribution</b><small>Host portal</small></span></h1><div><button id="logout" class="hidden" type="button">Sign out</button>
+<a id="home" href="#">All portals</a></div></header>
+<main>
+  <section id="auth" class="panel hidden">
+    <div class="auth-view" data-view="login">
+      <h2 class="auth-title">Sign in</h2>
+      <p class="auth-sub">to the Host portal</p>
+      <form id="login-form" autocomplete="on">
+        <label for="l-email">Email or phone number</label><input id="l-email" name="email" type="text" required autocomplete="username" spellcheck="false">
+        <div class="label-row"><label for="l-pass">Password</label><a href="#" class="auth-link" data-go="forgot">Forgot password?</a></div>
+        <input id="l-pass" name="password" type="password" required autocomplete="current-password">
+        <button class="primary" type="submit">Sign in</button>
+        <div id="login-msg" class="msg" role="alert"></div>
+      </form>
+      <div class="auth-alt" id="auth-alt" hidden>
+        <div class="auth-or"><span>or</span></div>
+        <div id="google-btn" class="google-btn" hidden></div>
+        <button type="button" class="alt-btn" id="code-open" data-go="code" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg>Email me a one-time code</button>
+      </div>
+      <p class="auth-switch note">Host accounts are created by the project team.</p>
+    </div>
+    <div class="auth-view" data-view="forgot" hidden>
+      <h2 class="auth-title">Reset your password</h2>
+      <p class="auth-sub">Enter the email address of your account. We'll send you a link to choose a new password.</p>
+      <form id="forgot-form">
+        <label for="f-email">Email</label><input id="f-email" name="email" type="email" required autocomplete="email">
+        <button class="primary" type="submit">Send reset link</button>
+        <div id="forgot-msg" class="msg" role="status"></div>
+      </form>
+      <p class="auth-switch"><a href="#" data-go="login">Back to sign in</a></p>
+    </div>
+    <div class="auth-view" data-view="reset" hidden>
+      <h2 class="auth-title">Choose a new password</h2>
+      <p class="auth-sub">You'll be signed in once it's saved.</p>
+      <form id="reset-form">
+        <label for="n-pass">New password</label><input id="n-pass" name="password" type="password" minlength="8" maxlength="72" required autocomplete="new-password">
+        <label for="n-confirm">Confirm new password</label><input id="n-confirm" name="confirm" type="password" minlength="8" maxlength="72" required autocomplete="new-password">
+        <button class="primary" type="submit">Save and sign in</button>
+        <div id="reset-msg" class="msg" role="alert"></div>
+      </form>
+      <p class="auth-switch"><a href="#" data-go="login">Back to sign in</a></p>
+    </div>
+    <div class="auth-view" data-view="code" hidden>
+      <h2 class="auth-title">Sign in with a code</h2>
+      <p class="auth-sub">We'll email a 6-digit code to the address on your account. No password needed.</p>
+      <form id="code-form">
+        <label for="c-phone">Email or phone number</label><input id="c-phone" name="identifier" type="text" required autocomplete="username" spellcheck="false">
+        <div id="code-step" hidden>
+          <label for="c-code">6-digit code</label><input id="c-code" name="code" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code">
+          <a href="#" class="auth-link" id="code-resend">Send a new code</a>
+        </div>
+        <button class="primary" type="submit" id="code-submit">Send code</button>
+        <div id="code-msg" class="msg" role="status"></div>
+      </form>
+      <p class="auth-switch"><a href="#" data-go="login">Use your password instead</a></p>
+    </div>
+  </section>
+  <section id="dashboard" class="hidden">
+    <div class="panel"><h2 id="welcome"></h2><dl id="profile"></dl></div>
+    <div class="section-tabs" id="admin-tabs">
+      <button type="button" data-tab="overview" class="active">Overview</button>
+      <button type="button" data-tab="map">Live map</button>
+      <button type="button" data-tab="queue">Review queue <span id="queue-count"></span></button>
+      <button type="button" data-tab="listings">Food listings</button>
+      <button type="button" data-tab="agents-ai">Agents</button>
+      <button type="button" data-tab="trust">Trust</button>
+      <button type="button" data-tab="simulation">Simulation</button>
+      <button type="button" data-tab="storage">NGO storage</button>
+      <button type="button" data-tab="agents">NGO agent directory</button>
+      <button type="button" data-tab="accounts">All accounts</button>
+      <button type="button" data-tab="events">Activity</button>
+      <button type="button" data-tab="privacy">Privacy</button>
+    </div>
+    <div id="tab-map" class="panel hidden"><h2>Live operations map</h2>
+      <div id="map-summary" class="row" style="margin-bottom:10px"></div>
+      <div class="map-layout"><div id="map"></div><aside id="agent-panel" class="card"></aside></div>
+      <div class="legend note">
+        <span><i style="background:#1f6feb"></i>Restaurant</span><span><i style="background:#c4620a"></i>Open food</span>
+        <span><i style="background:#8250df"></i>NGO on the way</span><span><i style="background:#1a7f37"></i>Food collected</span>
+        <span><i style="background:#1a7f37;outline:2px solid #fff"></i>Agent available (solid = live)</span>
+        <span><i style="background:#cf222e"></i>Agent unavailable</span><span><i style="background:transparent;border:2px dashed #888"></i>Last known / NGO base</span>
+      </div></div>
+    <div id="tab-overview" class="overview"></div>
+    <div id="tab-queue" class="panel hidden"><h2>Applications waiting for review</h2>
+      <div class="row" style="margin-bottom:12px"><label for="queue-status" style="margin:0">Show</label>
+        <select id="queue-status" style="width:auto"><option value="under_review">Under review</option>
+        <option value="on_hold">On hold (waiting for applicant)</option><option value="verified">Verified</option>
+        <option value="declined">Declined</option><option value="applicant">Not submitted</option></select></div>
+      <div id="queue"></div></div>
+    <div id="tab-agents-ai" class="panel hidden"><h2>Backend agents</h2>
+      <div class="row" style="justify-content:space-between"><p class="note" style="margin:0">Agents run every 30 seconds. Their decisions are suggestions and escalations; people still accept the food.</p>
+        <button type="button" id="run-agents">Run agents now</button></div>
+      <div id="agents-status" class="grid2" style="margin-top:12px"></div>
+      <div id="learned-box" class="card" style="margin-top:12px"></div>
+      <h3>Food at risk</h3>
+      <div class="table-wrap"><table><thead><tr><th>Updated</th><th>Restaurant</th><th>Food</th><th>Stage</th><th>Why</th><th>Backup requests</th><th>Food status</th></tr></thead><tbody id="escalations"></tbody></table></div>
+      <h3>Agent activity</h3><div id="agent-log"></div></div>
+    <div id="tab-simulation" class="panel hidden"><h2>Simulation and evaluation</h2>
+      <p class="note">Runs a pretend city (not your real data) and compares four ways of choosing a collector. The same seed always gives the same city, food posts and agent behaviour, so every strategy faces exactly the same days.</p>
+      <form id="sim-form" class="grid2" onsubmit="return false"></form>
+      <div class="row" style="margin-top:12px"><button type="button" id="sim-run" class="primary" style="width:auto;margin-top:0">Run simulation</button>
+        <button type="button" id="sim-csv">Download results (CSV)</button></div>
+      <p id="sim-status" class="msg"></p>
+      <div id="sim-results" class="hidden">
+        <div class="sim-charts"><div><canvas id="sim-chart-0"></canvas></div><div><canvas id="sim-chart-1"></canvas></div>
+          <div><canvas id="sim-chart-2"></canvas></div><div><canvas id="sim-chart-3"></canvas></div></div>
+        <div class="table-wrap"><table id="sim-table"></table></div>
+        <p class="note">Bold = best value. "±" = spread across cities. Times and distances are averaged over saved food only, so a strategy that rescues harder (farther) food can show longer times. "Our agents (no trust)" is the same as "Our agents" with the trust penalty switched off, to show what trust adds.</p>
+      </div></div>
+    <div id="tab-trust" class="panel hidden"><h2>Trust scores</h2>
+      <p class="note">Decision support only: scores never block anyone automatically. Score = (successes + 1) / (total + 2) &times; 100; a new account starts at 50 with low confidence.</p>
+      <h3>NGO agents</h3><div id="trust-ngos"></div>
+      <h3>Restaurants</h3><div id="trust-restaurants"></div></div>
+    <div id="tab-listings" class="panel hidden"><h2>Food listings</h2><div class="table-wrap"><table><thead><tr><th>Posted</th><th>Restaurant</th><th>Food</th><th>Qty</th><th>Best before</th><th>Status</th><th>Agents alerted</th><th>Collector</th><th>Outcome</th><th></th></tr></thead><tbody id="listings"></tbody></table></div></div>
+    <div id="tab-storage" class="panel hidden"><h2>Food stored at NGOs</h2><div class="table-wrap"><table><thead><tr><th>NGO</th><th>Food</th><th>Left / stored</th><th>Location</th><th>Best before</th><th>Status</th></tr></thead><tbody id="storage"></tbody></table></div></div>
+    <div id="tab-agents" class="panel hidden"><h2>NGO agents</h2><div class="table-wrap"><table><thead><tr><th>NGO</th><th>Representative</th><th>Phone</th><th>Verification</th><th>Availability</th><th>Location</th></tr></thead><tbody id="agents"></tbody></table></div></div>
+    <div id="tab-accounts" class="panel hidden"><h2>Accounts</h2><div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Application</th><th>Status marks</th><th>Created</th></tr></thead><tbody id="accounts"></tbody></table></div></div>
+    <div id="tab-privacy" class="panel hidden"><h2>Privacy and data retention</h2><div id="privacy-box"></div></div>
+    <div id="tab-events" class="panel hidden"><h2>Recent activity</h2><div class="table-wrap"><table><thead><tr><th>Time</th><th>Event</th><th>Portal</th><th>Subject</th></tr></thead><tbody id="events"></tbody></table></div></div>
+  </section>
+</main>
+<script>
+window.PORTAL = { title: 'Host Admin Portal' };
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/portal/map.js"></script>
+<script src="/static/portal/agents.js"></script>
+<script src="/static/portal/trust.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/static/portal/simulation.js"></script>
+<script src="/static/portal/learned.js"></script>
+<script src="/static/portal/privacy.js"></script>
+<script src="/static/portal/overview.js"></script>
+<script src="/static/portal/admin.js"></script>
+<script src="/static/common/portal.js"></script>
+<script src="/static/common/signin.js"></script>
+<script src="/static/common/shell.js"></script>
+</body></html>
